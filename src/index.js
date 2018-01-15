@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import {deepCopyArr} from './util.js'
+import {Midi} from './midi.js'
 import './index.css';
 
 var classNames = require('classnames');
@@ -112,11 +113,18 @@ class Board extends React.Component {
 }
 
 
+class Metronome extends React.Component {
+  render() {
+    return <h1>{'*'.repeat(this.props.beatPos % 4 + 1)}</h1>
+  }
+}
+
 class Game extends React.Component {
   constructor() {
     super();
     this.state = {
       selecting: false,
+      beatPos: 0,
       animationFrame: -1,
       animating: false,
       mirrorX: true,
@@ -129,6 +137,9 @@ class Game extends React.Component {
     this.localStorageKey = this.constructor.name;
     var storedState = localStorage.getItem(this.localStorageKey);
     if (storedState) this.state = JSON.parse(storedState);
+
+    this.midi = new Midi();
+    this.midi.onEvery(24, (songPos) => this.setState({beatPos: songPos / 24}));
   }
   handleKeyDown(event) {
     if (event.keyCode === 80 && this.state.animations.length > 0) {
@@ -247,13 +258,13 @@ class Game extends React.Component {
         <h3>Info</h3>
         <p>mirrorX: {this.state.mirrorX ? 'on' : 'off'}</p>
         <p>mirrorY: {this.state.mirrorY ? 'on' : 'off'}</p>
-        <p>grow: {this.state.grow ? 'on' : 'off'}</p>
         <p>{(this.state.animationFrame > -1) ? ('Draw frame: ' + this.state.animationFrame) : ''}</p>
         <p>{this.state.selecting ? 'Pick a square' : ''}</p>
         <p>{this.state.currentSquare ? 
           'animating: ' + (this.state.currentSquare[0] + ',' + this.state.currentSquare[1]) 
           : ''}</p>
-        <h4>{this.state.animationNames.length ? 'Animations' : ''}</h4>
+        <button onClick={() => this.midi.onNext(24 * 4, () => this.randomAnimation(false, false, 6, 300))}>Random</button>
+        <button onClick={() => this.randomAnimation(false, true, 8, 300)}>Snake</button>
         <ul>
           {Object.keys(this.state.animationNames).map((animationName) => 
             <li className='pointer' key={animationName}
@@ -262,7 +273,7 @@ class Game extends React.Component {
                 this.state.animations[this.state.animationNames[animationName]], 300, false)}}>
               {animationName}</li>)}
         </ul>
-        <div className='pointer' onClick={() => this.randomAnimation(false, false, 6, 300)}>Random</div>
+        <Metronome beatPos={this.state.beatPos} />
       </div>
       </div>
     );
