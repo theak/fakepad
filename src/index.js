@@ -126,7 +126,8 @@ class Game extends React.Component {
       selecting: false,
       beatPos: 0,
       animationFrame: -1,
-      animating: false,
+      activeAnimation: null,
+      activeAnimationFrame: -1,
       mirrorX: true,
       mirrorY: true,
       grow: false,
@@ -140,33 +141,28 @@ class Game extends React.Component {
 
     this.midi = new Midi();
     this.midi.onEvery(24, (songPos) => this.setState({beatPos: songPos / 24}));
+    this.midi.onEvery(6, (songPos) => this.handleNextFrame());
   }
-  handleKeyDown(event) {
-    if (event.keyCode === 80 && this.state.animations.length > 0) {
-      this.previewAnimation(
-        this.state.animations[this.state.animations.length - 1], 300,
-        false);
+
+  //Animation handling code
+
+  handleNextFrame() {
+    if (this.state.activeAnimation) {
+      if (this.state.activeAnimationFrame >= this.state.activeAnimation.length) {
+        this.refs.board.clear();
+        this.setState({activeAnimation: null, activeAnimationFrame: -1});
+      } else {
+        this.refs.board.setState({lit: this.state.activeAnimation[this.state.activeAnimationFrame]});
+        this.setState({activeAnimationFrame: this.state.activeAnimationFrame + 1})
+      }
     }
   }
 
-  previewAnimation(animation, duration, reverse, keep) {
-    this.setState({animating: true});
-    var index = reverse ? (animation.length - 1) : 0;
-    var stepDuration = duration / animation.length;
-    this.refs.board.setState({lit: animation[index]});
-    if (animation.length > 1) {
-      var remainder = reverse ? animation.slice(0, index) : animation.slice(1);
-      setTimeout(() => this.previewAnimation(remainder, 
-        duration - stepDuration, reverse), stepDuration);
-    } else {
-      setTimeout(() => {
-        if (!keep) this.refs.board.clear();
-        this.setState({animating: false});
-      }, stepDuration);
-    }
+  previewAnimation(animation) {
+    this.setState({activeAnimation: animation, activeAnimationFrame: 0}, this.handleNextFrame);
   }
 
-  randomAnimation(trail, consecutive, steps, duration) {
+  randomAnimation(trail, consecutive, steps) {
     var animation = deepCopyArr(Array(steps).fill(Array(8).fill(Array(8).fill(false))));
     var randomCell = () => Math.floor(Math.random() * 8);
     var pickOne = (x, y) => (Math.random() > 0.5) ? x : y;
@@ -190,7 +186,16 @@ class Game extends React.Component {
       point = newPoint;
     }
     console.log(animation);
-    this.previewAnimation(animation, duration);
+    this.previewAnimation(animation);
+  }
+  
+  // Key Bindings
+
+  handleKeyDown(event) {
+    if (event.keyCode === 80 && this.state.animations.length > 0) {
+      this.previewAnimation(
+        this.state.animations[this.state.animations.length - 1]);
+    }
   }
 
   handleKeyUp(event) {
@@ -263,8 +268,16 @@ class Game extends React.Component {
         <p>{this.state.currentSquare ? 
           'animating: ' + (this.state.currentSquare[0] + ',' + this.state.currentSquare[1]) 
           : ''}</p>
-        <button onClick={() => this.midi.onNext(24 * 4, () => this.randomAnimation(false, false, 6, 300))}>Random</button>
-        <button onClick={() => this.randomAnimation(false, true, 8, 300)}>Snake</button>
+        <button onClick={() => this.midi.onNext(24 * 4, 
+            () => this.randomAnimation(
+              false, false, 8))}>
+          Random
+        </button>
+        <button onClick={() => this.midi.onNext(24 * 4, 
+            () => this.randomAnimation(
+              true, true, 8))}>
+          Snake
+        </button>
         <ul>
           {Object.keys(this.state.animationNames).map((animationName) => 
             <li className='pointer' key={animationName}

@@ -67,6 +67,11 @@ export class Midi {
   onEvery(ticks, lambda) {
     this.everyNTicks.push(ticks);
     this.everyNLambdas.push(lambda);
+    return this.everyNTicks.length - 1;
+  }
+  removeEvery(index) {
+    this.everyNTicks.splice(index, 1);
+    this.everyNLambdas.splice(index, 1);
   }
 
   onNext(ticks, lambda) {
