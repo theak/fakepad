@@ -1,9 +1,10 @@
 import WebMidi from 'webmidi'
 
-var maxPos = 24 * 4 * 16;
+const maxPos = 24 * 4 * 16;
+const fakeBpm = 120;
 
 export class Midi {
-  constructor() {
+  constructor(fakeClock) {
     this.songPos = -1;
     this.bpm = -1;
 
@@ -21,33 +22,7 @@ export class Midi {
       if (!this.launchpad) this.launchpad = 
         {playNote: console.log, stopNote: ()=>{}};
       var that = this;
-      this.iac.addListener("clock", "all", (e) => {
-        if (that.prevTimestamp === -1) that.prevTimestamp = e.timestamp;
-        else {
-          var beatLenMs = (e.timestamp - that.prevTimestamp) * 24;
-          that.bpm = Math.round(60000 / beatLenMs);
-          that.prevTimestamp = e.timestamp;
-        }
-        that.songPos += 1;
-        if (that.songPos === maxPos) that.songPos = 0;
-
-        for (const [index, beat] of that.everyNTicks.entries()) {
-          if ((that.songPos % beat) === 0) that.everyNLambdas[index](that.songPos);
-        }
-
-        const indexesToRemove = [];
-        for (const [index, beat] of that.nextNTicks.entries()) {
-          if ((that.songPos % beat) === 0) {
-            that.nextNLambdas[index](that.songPos);
-            indexesToRemove.push(index);
-          }
-        }
-        for (const i of indexesToRemove) {
-          that.nextNTicks.splice(i, 1);
-          that.nextNLambdas.splice(i, 1);
-        }
-
-      });
+      this.iac.addListener("clock", "all", this.handleClock);
 
       this.iac.addListener("songposition", "all", (e) => {
         console.log(e)
@@ -62,6 +37,9 @@ export class Midi {
       });
 
     });
+    this.handleClock = this.handleClock.bind(this);
+
+    if (fakeClock) setInterval(() => this.handleClock({}, true), (60000 / fakeBpm) / 24);
   }
 
   onEvery(ticks, lambda) {
@@ -77,5 +55,36 @@ export class Midi {
   onNext(ticks, lambda) {
     this.nextNTicks.push(ticks);
     this.nextNLambdas.push(lambda);
+  }
+
+  handleClock(e, isFake) {
+    var that = this;
+    if (isFake) that.bpm = fakeBpm;
+    else {
+      if (that.prevTimestamp === -1) that.prevTimestamp = e.timestamp;
+      else {
+        var beatLenMs = (e.timestamp - that.prevTimestamp) * 24;
+        that.bpm = Math.round(60000 / beatLenMs);
+        that.prevTimestamp = e.timestamp;
+      }
+    }
+    that.songPos += 1;
+    if (that.songPos === maxPos) that.songPos = 0;
+
+    for (const [index, beat] of that.everyNTicks.entries()) {
+      if ((that.songPos % beat) === 0) that.everyNLambdas[index](that.songPos);
+    }
+
+    const indexesToRemove = [];
+    for (const [index, beat] of that.nextNTicks.entries()) {
+      if ((that.songPos % beat) === 0) {
+        that.nextNLambdas[index](that.songPos);
+        indexesToRemove.push(index);
+      }
+    }
+    for (const i of indexesToRemove) {
+      that.nextNTicks.splice(i, 1);
+      that.nextNLambdas.splice(i, 1);
+    }
   }
 }

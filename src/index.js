@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
+import {shiftBoard} from './boardUtils.js'
 import {deepCopyArr} from './util.js'
 import {Midi} from './midi.js'
 import './index.css';
@@ -22,87 +23,17 @@ class Square extends React.Component {
 }
 
 class Board extends React.Component {
-  constructor() {
-    super();
-    this.state = {
-      lit: Array(8).fill(Array(8).fill(false))
-    }
-    this.shift = this.shift.bind(this);
-  }
-
-  clear() {
-    this.setState({lit: Array(8).fill(Array(8).fill(false))});
-  }
-
-  shift(direction) {
-    var newState = deepCopyArr(this.state.lit);
-    var inc, i, j;
-    if (direction === 'down' || direction === 'up') { 
-      var down = (direction === 'down');
-      var prevRow = Array(8).fill(false);
-      inc = down ? 1 : -1;
-      if (!this.props.grow)
-        for (i = 4; i < 8; i++)
-          newState[i] = Array(8).fill(false);
-      for (i = (down ? 0 : 7); down ? (i < 8) : (i > -1); i+=inc) {
-        var currentRow = newState[i];
-        newState[i] = prevRow;
-        prevRow = currentRow;
-      }
-    } else {
-      var right = (direction === 'right');
-      inc = right ? 1 : -1;
-      if (!this.props.grow)
-        for (i = 0; i < 8; i++)
-          for (j = 4; j < 8; j++)
-            newState[i][j] = false;
-      for (i = 0; i < 8; i++) {
-        var prevVal = false;
-        for (j = (right ? 0 : 7); right ? (j < 8) : (j > -1); j+=inc) {
-          var currentVal = newState[i][j];
-          newState[i][j] = prevVal;
-          prevVal = currentVal;
-        }
-      }
-    }
-
-    this.updateMirror({lit: newState});
-  }
-
-  updateMirror(newState) {
-    var i, j;
-    if (this.props.mirrorY) {
-      for (i = 0; i < 4; i++) {
-        newState.lit[7 - i] = newState.lit[i];
-      }
-    }
-    if (this.props.mirrorX) {
-      for (i = 0; i < 8; i++) {
-        for (j = 0; j < 4; j++)
-          newState.lit[i][7 - j] = newState.lit[i][j];
-      }
-    }
-    this.setState(newState)
-  }
-  
   render() {
     let rows = [];
     for (var i = 0; i < 8; i++) {
       let cols = [];
-      for (var j = 0; j < 8; j++) {
-        ((i, j) => {
-          var newState = {lit: deepCopyArr(this.state.lit)};
-          newState.lit[i][j] = !newState.lit[i][j];
-          if (this.props.mirrorX) newState.lit[i][7 - j] = !newState.lit[i][7 - j];
-          if (this.props.mirrorY) newState.lit[7 - i][j] = !newState.lit[7 - i][j];
-          if (this.props.mirrorX && this.props.mirrorY) 
-            newState.lit[7 - i][7 - j] = !newState.lit[7 - i][7 - j];
+      for (var j = 0; j < 8; j++) {((i, j) => {
+        var that = this;
         cols.push(<Square 
           selecting={this.props.selecting}
           key={i + ',' + j}
-          lit={this.state.lit[i][j]} 
-          onClick={this.props.selecting ? (() => this.props.onSelect(i, j))
-            : (() => this.setState(newState))} />);
+          lit={this.props.boardLights[i][j]} 
+          onClick={() => that.props.onBoardClick(i, j)} />);
         })(i, j)
       }
       rows.push(cols);
@@ -119,12 +50,14 @@ class Metronome extends React.Component {
   }
 }
 
-class Game extends React.Component {
+class Fakepad extends React.Component {
   constructor() {
     super();
     this.state = {
       selecting: false,
+      fakeClock: true,
       beatPos: 0,
+      boardLights: Array(8).fill(Array(8).fill(false)),
       animationFrame: -1,
       activeAnimation: null,
       activeAnimationFrame: -1,
@@ -136,30 +69,56 @@ class Game extends React.Component {
       animationNames: {} //name => index
     }
     this.localStorageKey = this.constructor.name;
+    console.log(this.localStorageKey);
     var storedState = localStorage.getItem(this.localStorageKey);
     if (storedState) this.state = JSON.parse(storedState);
 
-    this.midi = new Midi();
+    this.midi = new Midi(this.state.fakeClock);
     this.midi.onEvery(24, (songPos) => this.setState({beatPos: songPos / 24}));
     this.midi.onEvery(6, (songPos) => this.handleNextFrame());
+
+    this.handleBoardClick = this.handleBoardClick.bind(this);
+  }
+  //Board handling methods
+  clearBoard() {
+    this.setState({boardLights: Array(8).fill(Array(8).fill(false))});
+  }
+  handleBoardClick(i, j) {
+    var boardLights = deepCopyArr(this.state.boardLights);
+    boardLights[i][j] = !boardLights[i][j];
+    if (this.state.mirrorX) boardLights[i][7 - j] = !boardLights[i][7 - j];
+    if (this.state.mirrorY) boardLights[7 - i][j] = !boardLights[7 - i][j];
+    if (this.state.mirrorX && this.state.mirrorY)
+        boardLights[7 - i][7 - j] = !boardLights[7 - i][7 - j];
+
+    this.setState({boardLights: boardLights});
+  }
+  shiftBoard(direction) {
+    const boardLights = shiftBoard(this.state.boardLights, direction, this.state.mirrorX, this.state.mirrorY);
+    this.setState({boardLights: boardLights});
   }
 
-  //Animation handling code
+  //Animation handling methods
+  previewAnimation(animation, reverse) {
+    if (reverse) animation = deepCopyArr(animation).reverse();
+    this.setState({activeAnimation: animation, activeAnimationFrame: 0, boardLights: animation[0]}, this.handleNextFrame);
+  }
 
   handleNextFrame() {
     if (this.state.activeAnimation) {
-      if (this.state.activeAnimationFrame >= this.state.activeAnimation.length) {
-        this.refs.board.clear();
-        this.setState({activeAnimation: null, activeAnimationFrame: -1});
+      if (this.state.activeAnimationFrame >= this.state.activeAnimation.length - 1) {
+        this.setState({
+          activeAnimation: null, 
+          activeAnimationFrame: -1,
+          boardLights: Array(8).fill(Array(8).fill(false))
+        });
       } else {
-        this.refs.board.setState({lit: this.state.activeAnimation[this.state.activeAnimationFrame]});
-        this.setState({activeAnimationFrame: this.state.activeAnimationFrame + 1})
+        const nextFrame = this.state.activeAnimationFrame + 1;
+        this.setState({
+          activeAnimationFrame: nextFrame,
+          boardLights: this.state.activeAnimation[nextFrame]});
       }
     }
-  }
-
-  previewAnimation(animation) {
-    this.setState({activeAnimation: animation, activeAnimationFrame: 0}, this.handleNextFrame);
   }
 
   randomAnimation(trail, consecutive, steps) {
@@ -185,8 +144,11 @@ class Game extends React.Component {
       }
       point = newPoint;
     }
-    console.log(animation);
     this.previewAnimation(animation);
+  }
+
+  getAnimationByName(animationName) {
+    return this.state.animations[this.state.animationNames[animationName]];
   }
   
   // Key Bindings
@@ -202,17 +164,17 @@ class Game extends React.Component {
     console.log(event.keyCode);
     if (event.keyCode === 88) this.setState({mirrorX: !this.state.mirrorX});
     if (event.keyCode === 89) this.setState({mirrorY: !this.state.mirrorY});
-    if (event.keyCode === 67) this.refs.board.clear();
+    if (event.keyCode === 67) this.clearBoard();
     if (event.keyCode === 65) {
       var animationFrame = this.state.animationFrame;
       var animations = deepCopyArr(this.state.animations);
       if (animationFrame === -1) {
         animations.push([]);
         animationFrame = 0;
-        this.refs.board.clear();
+        this.clearBoard();
       } else { //Store current frame and advance to next frame
         var currentAnimation = animations[animations.length - 1];
-        currentAnimation.push(this.refs.board.state.lit);
+        currentAnimation.push(this.state.boardLights);
         animationFrame += 1;
       }
       this.setState({animationFrame: animationFrame, animations: animations});
@@ -225,13 +187,13 @@ class Game extends React.Component {
         animationNames: animationNames,
         animationFrame: -1
       });
-      this.refs.board.clear();
+      this.clearBoard();
     }
 
-    if (event.keyCode === 38) this.refs.board.shift('up');
-    if (event.keyCode === 40) this.refs.board.shift('down');
-    if (event.keyCode === 37) this.refs.board.shift('left');
-    if (event.keyCode === 39) this.refs.board.shift('right');
+    if (event.keyCode === 38) this.shiftBoard('up');
+    if (event.keyCode === 40) this.shiftBoard('down');
+    if (event.keyCode === 37) this.shiftBoard('left');
+    if (event.keyCode === 39) this.shiftBoard('right');
   }
 
   handleSelect(i, j) {
@@ -244,10 +206,13 @@ class Game extends React.Component {
     this.handleSelect = this.handleSelect.bind(this);
   }
 
-  componentDidUpdate() {
-    if (this.saveTimeout) clearTimeout(this.saveTimeout);
-    this.saveTimeout = setTimeout(() => 
-      localStorage.setItem(this.localStorageKey, JSON.stringify(this.state)), 500)
+  componentDidUpdate(prevProps, prevState) {
+    const stateString = JSON.stringify(this.state);
+    if (JSON.stringify(prevState) === stateString) {
+      if (this.saveTimeout) clearTimeout(this.saveTimeout);
+      this.saveTimeout = setTimeout(() => {
+        localStorage.setItem(this.localStorageKey, stateString)}, 500)
+    }
   }
 
   render() {
@@ -256,7 +221,8 @@ class Game extends React.Component {
       <div className="board">
         <Board ref="board" 
           mirrorX={this.state.mirrorX} mirrorY={this.state.mirrorY}
-          grow={this.state.grow}
+          grow={this.state.grow} boardLights={this.state.boardLights}
+          onBoardClick={this.handleBoardClick}
           selecting={this.state.selecting} onSelect={this.handleSelect}/>
       </div>
       <div className="info">
@@ -268,23 +234,28 @@ class Game extends React.Component {
         <p>{this.state.currentSquare ? 
           'animating: ' + (this.state.currentSquare[0] + ',' + this.state.currentSquare[1]) 
           : ''}</p>
-        <button onClick={() => this.midi.onNext(24 * 4, 
+        <button onClick={() => this.midi.onNext(24, 
             () => this.randomAnimation(
-              false, false, 8))}>
+              false, false, 4))}>
           Random
         </button>
-        <button onClick={() => this.midi.onNext(24 * 4, 
+        <button onClick={() => this.midi.onNext(24, 
             () => this.randomAnimation(
-              true, true, 8))}>
+              true, true, 4))}>
           Snake
         </button>
         <ul>
           {Object.keys(this.state.animationNames).map((animationName) => 
-            <li className='pointer' key={animationName}
-                onClick={() => {
-                this.previewAnimation(
-                this.state.animations[this.state.animationNames[animationName]], 300, false)}}>
-              {animationName}</li>)}
+            <li className='pointer' key={animationName}>
+              <a onClick={() => {
+                  this.previewAnimation(this.getAnimationByName(animationName), false)}}>
+                {animationName}
+              </a>
+              <a onClick={() => {
+                  this.previewAnimation(this.getAnimationByName(animationName), true)}}>
+                &nbsp;&nbsp;[rev]
+              </a>
+            </li>)}
         </ul>
         <Metronome beatPos={this.state.beatPos} />
       </div>
@@ -296,7 +267,7 @@ class Game extends React.Component {
 // ========================================
 
 ReactDOM.render(
-  <Game />,
+  <Fakepad />,
   document.getElementById('root')
 );
 
