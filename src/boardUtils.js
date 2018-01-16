@@ -28,14 +28,17 @@ export function shiftBoard(board, direction, mirrorX, mirrorY) {
       }
     }
   }
+  updateMirror(newBoard, mirrorX, mirrorY);
+  return newBoard;
+}
 
+export function updateMirror(board, mirrorX, mirrorY) {
+  var i, j;
   if (mirrorY) 
     for (i = 0; i < 4; i++)
-      newBoard[7 - i] = newBoard[i];
+      board[7 - i] = board[i];
   if (mirrorX)
       for (i = 0; i < 8; i++)
         for (j = 0; j < 4; j++)
-          newBoard[i][7 - j] = newBoard[i][j];
-
-  return newBoard;
+          board[i][7 - j] = board[i][j];
 }

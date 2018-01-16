@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import {shiftBoard} from './boardUtils.js'
+import {shiftBoard, updateMirror} from './boardUtils.js'
 import {deepCopyArr} from './util.js'
 import {Midi} from './midi.js'
 import './index.css';
@@ -118,6 +118,16 @@ class Fakepad extends React.Component {
           activeAnimationFrame: nextFrame,
           boardLights: this.state.activeAnimation[nextFrame]});
       }
+    } else {
+      var boardLights = deepCopyArr(Array(8).fill(Array(8).fill(false)));
+      var beatPos = this.state.beatPos % 16;
+      const x = Math.floor(beatPos / 4);
+      const y = beatPos % 4;
+      boardLights[x][y] = true;
+      updateMirror(boardLights, this.state.mirrorX, this.state.mirrorY);
+      this.setState({
+        boardLights: boardLights
+      })
     }
   }
 
@@ -209,9 +219,7 @@ class Fakepad extends React.Component {
   componentDidUpdate(prevProps, prevState) {
     const stateString = JSON.stringify(this.state);
     if (JSON.stringify(prevState) === stateString) {
-      if (this.saveTimeout) clearTimeout(this.saveTimeout);
-      this.saveTimeout = setTimeout(() => {
-        localStorage.setItem(this.localStorageKey, stateString)}, 500)
+      localStorage.setItem(this.localStorageKey, stateString);
     }
   }
 
@@ -229,6 +237,11 @@ class Fakepad extends React.Component {
         <h3>Info</h3>
         <p>mirrorX: {this.state.mirrorX ? 'on' : 'off'}</p>
         <p>mirrorY: {this.state.mirrorY ? 'on' : 'off'}</p>
+        <button onClick={()=> {
+          this.setState({fakeClock: !this.state.fakeClock})}
+        }>
+          fakeClock: {this.state.fakeClock ? 'on' : 'off'}
+        </button>
         <p>{(this.state.animationFrame > -1) ? ('Draw frame: ' + this.state.animationFrame) : ''}</p>
         <p>{this.state.selecting ? 'Pick a square' : ''}</p>
         <p>{this.state.currentSquare ? 
