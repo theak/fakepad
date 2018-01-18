@@ -36,6 +36,11 @@ export class Midi {
         that.songPos = -1;
       });
 
+      this.iac.addListener("noteon", "all", (e) => {
+        console.log(e.note.number);
+        if (e.note.number == 120) that.songPos = -1;
+      });
+
     });
     this.handleClock = this.handleClock.bind(this);
 
@@ -49,7 +54,6 @@ export class Midi {
 
   lightOn(coords) {
     for (var coord of coords) {
-      console.log(JSON.stringify(coord));
       this.launchpad.playNote(this.noteNum(coord), 1, {velocity: 1});
     }
   }
