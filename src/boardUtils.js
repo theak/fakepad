@@ -42,3 +42,26 @@ export function updateMirror(board, mirrorX, mirrorY) {
         for (j = 0; j < 4; j++)
           board[i][7 - j] = board[i][j];
 }
+
+function onLights(board) {
+  var out = [];
+  for (var i = 0; i < board.length; i++) {
+    for (var j = 0; j < board[i].length; j++) {
+      if (board[i][j]) out.push([i, j]);
+    }
+  }
+  return out;
+}
+
+function coordDiff(coords1, coords2) {
+  const oldCoords = new Set(coords1.map(JSON.stringify));
+  const newCoords = new Set(coords2.map(JSON.stringify));
+  return {
+    off: [...oldCoords].filter(c => !newCoords.has(c)).map(JSON.parse),
+    on: [...newCoords].filter(c => !oldCoords.has(c)).map(JSON.parse)
+  } 
+}
+
+export function boardDiff(board1, board2) {
+  return coordDiff(onLights(board1), onLights(board2));
+}

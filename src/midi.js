@@ -42,6 +42,23 @@ export class Midi {
     if (fakeClock) setInterval(() => this.handleClock({}, true), (60000 / fakeBpm) / 24);
   }
 
+  noteNum(coord) {
+    if (coord[1] < 4) return 36 + (7 - coord[0]) * 4 + coord[1];
+    else return 36 + 32 + (7 - coord[0]) * 4 + (coord[1] - 4);
+  }
+
+  lightOn(coords) {
+    for (var coord of coords) {
+      console.log(JSON.stringify(coord));
+      this.launchpad.playNote(this.noteNum(coord), 1, {velocity: 1});
+    }
+  }
+
+  lightOff(coords) {
+    for (var coord of coords)
+      this.launchpad.stopNote(this.noteNum(coord))
+  }
+
   onEvery(ticks, lambda) {
     this.everyNTicks.push(ticks);
     this.everyNLambdas.push(lambda);

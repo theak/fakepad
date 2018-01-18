@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import {shiftBoard, updateMirror} from './boardUtils.js'
+import {shiftBoard, updateMirror, boardDiff} from './boardUtils.js'
 import {deepCopyArr} from './util.js'
 import {Midi} from './midi.js'
 import './index.css';
@@ -78,6 +78,8 @@ class Fakepad extends React.Component {
     this.midi.onEvery(6, (songPos) => this.handleNextFrame());
 
     this.handleBoardClick = this.handleBoardClick.bind(this);
+
+    window.midi = this.midi;
   }
   //Board handling methods
   clearBoard() {
@@ -218,8 +220,15 @@ class Fakepad extends React.Component {
 
   componentDidUpdate(prevProps, prevState) {
     const stateString = JSON.stringify(this.state);
-    if (JSON.stringify(prevState) === stateString) {
+    if (JSON.stringify(prevState) !== stateString) {
       localStorage.setItem(this.localStorageKey, stateString);
+    }
+
+    if (JSON.stringify(prevState.boardLights) 
+        !== JSON.stringify(this.state.boardLights)) {
+      const diff = boardDiff(prevState.boardLights, this.state.boardLights);
+      this.midi.lightOn(diff.on);
+      this.midi.lightOff(diff.off);
     }
   }
 
